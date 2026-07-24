@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Predict breast tissue malignancy from cell-nuclei measurements.">
+<title>Breast Cancer Prediction — Diagnostic Panel</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230F6B63'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root,
+  html[data-theme="light"]{
+    --bg:#EEF2F1;
+    --surface:#FFFFFF;
+    --ink:#16262A;
+    --ink-soft:#5B6E70;
+    --line:#D8E0DE;
+    --line-strong:#B9C6C3;
+    --accent:#0F6B63;
+    --accent-ink:#0B4C46;
+    --accent-soft:#E3EFEC;
+    --flag-benign:#2F7A4D;
+    --flag-benign-soft:#E7F3EB;
+    --flag-malignant:#A8412A;
+    --flag-malignant-soft:#F6E7E3;
+    --shadow:0 1px 2px rgba(22,38,42,.04);
+  }
+
+  html[data-theme="dark"]{
+    --bg:#0F1A1B;
+    --surface:#152423;
+    --ink:#E7EEEC;
+    --ink-soft:#93A6A3;
+    --line:#25403C;
+    --line-strong:#33534D;
+    --accent:#3FBBA9;
+    --accent-ink:#8FE0D2;
+    --accent-soft:#17332E;
+    --flag-benign:#4DAB6E;
+    --flag-benign-soft:#122B1C;
+    --flag-malignant:#D97455;
+    --flag-malignant-soft:#2E1912;
+    --shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+    transition:background .2s ease, color .2s ease;
+  }
+
+  .skip-link{
+    position:absolute;
+    left:-999px;
+    top:0;
+    background:var(--accent);
+    color:#fff;
+    padding:10px 16px;
+    z-index:100;
+  }
+  .skip-link:focus{ left:16px; top:16px; }
+
+  .wrap{
+    max-width:1080px;
+    margin:0 auto;
+    padding:40px 24px 96px;
+  }
+
+  /* ---------- Header ---------- */
+  .topbar{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--accent-ink);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:8px;
+    height:8px;
+    background:var(--accent);
+    border-radius:50%;
+    display:inline-block;
+    flex:none;
+  }
+  h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:clamp(28px, 4vw, 40px);
+    letter-spacing:-0.01em;
+    margin:0 0 8px;
+  }
+  .subhead{
+    color:var(--ink-soft);
+    font-size:15px;
+    max-width:56ch;
+    margin:0 0 32px;
+  }
+
+  .theme-toggle{
+    flex:none;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    color:var(--ink-soft);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    padding:8px 12px;
+    cursor:pointer;
+    border-radius:2px;
+    transition:border-color .15s ease, color .15s ease;
+  }
+  .theme-toggle:hover{ border-color:var(--accent); color:var(--accent-ink); }
+  .theme-toggle svg{ width:14px; height:14px; }
+
+  /* ---------- Alerts ---------- */
+  .alert{
+    border:1px solid var(--flag-malignant);
+    background:var(--flag-malignant-soft);
+    color:var(--flag-malignant);
+    padding:14px 16px;
+    font-size:14px;
+    font-family:'IBM Plex Mono', monospace;
+    margin-bottom:28px;
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+  }
+  .alert::before{ content:"!"; font-weight:700; }
+
+  /* ---------- Layout ---------- */
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 340px;
+    gap:32px;
+    align-items:start;
+  }
+  @media (max-width:860px){
+    .grid{ grid-template-columns:1fr; }
+    .side-stack{ position:static; }
+  }
+
+  /* ---------- Panel shell ---------- */
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    box-shadow:var(--shadow);
+  }
+  .panel-head{
+    padding:16px 20px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+  }
+  .panel-head h2{
+    font-family:'Space Grotesk', sans-serif;
+    font-size:15px;
+    font-weight:600;
+    margin:0;
+    letter-spacing:0.01em;
+  }
+  .panel-head .count{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+  }
+
+  /* ---------- Requisition-style field rows ---------- */
+  .field-row{
+    display:grid;
+    grid-template-columns:1fr 120px;
+    align-items:center;
+    padding:0 20px;
+    border-bottom:1px solid var(--line);
+  }
+  .field-row:last-child{ border-bottom:none; }
+  .field-row label{
+    font-size:14px;
+    color:var(--ink);
+    padding:13px 12px 13px 0;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .field-row .idx{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--line-strong);
+  }
+  .field-row .info{
+    width:14px;
+    height:14px;
+    border-radius:50%;
+    border:1px solid var(--line-strong);
+    color:var(--ink-soft);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    cursor:help;
+    flex:none;
+  }
+  .field-row input{
+    width:100%;
+    border:none;
+    border-bottom:1px solid var(--line-strong);
+    background:transparent;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:14px;
+    text-align:right;
+    padding:12px 2px;
+    color:var(--ink);
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .field-row input:hover{ background:var(--accent-soft); }
+  .field-row input:focus{
+    outline:none;
+    border-bottom:2px solid var(--accent);
+    background:var(--accent-soft);
+  }
+  .field-row input:invalid:not(:placeholder-shown){
+    border-bottom-color:var(--flag-malignant);
+  }
+  .field-row input::placeholder{ color:var(--line-strong); }
+
+  form .panel + .panel{ margin-top:20px; }
+
+  .toolbar{
+    margin-top:24px;
+    display:flex;
+    align-items:center;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  button[type="submit"]{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    font-size:14px;
+    letter-spacing:0.02em;
+    color:#fff;
+    background:var(--accent);
+    border:none;
+    padding:13px 28px;
+    cursor:pointer;
+    border-radius:2px;
+    transition:background .15s ease, transform .1s ease;
+  }
+  button[type="submit"]:hover{ background:var(--accent-ink); }
+  button[type="submit"]:active{ transform:translateY(1px); }
+  button[type="submit"].is-loading{ opacity:.7; cursor:progress; }
+
+  .btn-ghost{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.03em;
+    color:var(--ink-soft);
+    background:transparent;
+    border:1px solid var(--line-strong);
+    padding:12px 16px;
+    cursor:pointer;
+    border-radius:2px;
+    transition:border-color .15s ease, color .15s ease;
+  }
+  .btn-ghost:hover{ border-color:var(--accent); color:var(--accent-ink); }
+
+  .submit-hint{
+    font-size:12px;
+    color:var(--ink-soft);
+    font-family:'IBM Plex Mono', monospace;
+  }
+
+  /* ---------- Sidebar: leaderboard ---------- */
+  .side-stack{
+    display:flex;
+    flex-direction:column;
+    gap:20px;
+    position:sticky;
+    top:24px;
+  }
+  .lb-row{
+    display:grid;
+    grid-template-columns:20px 1fr 52px;
+    gap:10px;
+    align-items:center;
+    padding:11px 20px;
+    border-bottom:1px solid var(--line);
+    font-size:13px;
+  }
+  .lb-row:last-child{ border-bottom:none; }
+  .lb-row.is-deployed{ background:var(--accent-soft); }
+  .lb-rank{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+  }
+  .lb-name{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .lb-name .tag{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9px;
+    letter-spacing:0.06em;
+    color:var(--accent-ink);
+    background:var(--accent-soft);
+    border:1px solid var(--accent);
+    padding:1px 5px;
+    margin-left:6px;
+    vertical-align:middle;
+    border-radius:2px;
+  }
+  .lb-acc{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    text-align:right;
+    color:var(--ink-soft);
+  }
+  .is-deployed .lb-acc{ color:var(--accent-ink); font-weight:600; }
+  .deployed-note{
+    padding:12px 20px 16px;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+  .deployed-note strong{ color:var(--ink); }
+
+  /* ---------- Result readout ---------- */
+  .result{
+    border:1px solid var(--line);
+    background:var(--surface);
+    box-shadow:var(--shadow);
+    animation:rise .25s ease both;
+  }
+  @keyframes rise{
+    from{ opacity:0; transform:translateY(6px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  .result-head{ padding:16px 20px 0; }
+  .result-body{
+    padding:16px 20px 20px;
+    border-left:4px solid var(--accent);
+    margin:12px 20px 20px;
+    padding-left:16px;
+  }
+  .result-body.flag-benign{ border-color:var(--flag-benign); background:var(--flag-benign-soft); }
+  .result-body.flag-malignant{ border-color:var(--flag-malignant); background:var(--flag-malignant-soft); }
+  .result-verdict{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:17px;
+    margin:0 0 6px;
+  }
+  .result-body.flag-benign .result-verdict{ color:var(--flag-benign); }
+  .result-body.flag-malignant .result-verdict{ color:var(--flag-malignant); }
+  .result-detail{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin:0;
+  }
+
+  .empty-note{
+    padding:16px 20px 20px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+
+  footer{
+    margin-top:40px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    text-align:center;
+  }
+
+  @media print{
+    .theme-toggle, .toolbar, form button, .btn-ghost{ display:none !important; }
+    body{ background:#fff; color:#000; }
+    .panel, .result{ box-shadow:none; border-color:#999; }
+  }
+</style>
+</head>
+<body>
+  <a class="skip-link" href="#form-start">Skip to form</a>
+  <div class="wrap">
+
+    <div class="topbar">
+      <div>
+        <div class="eyebrow">Diagnostic Panel — Cytology</div>
+        <h1>Breast Cancer Prediction</h1>
+        <p class="subhead">Enter cell-nuclei measurements from a fine-needle aspirate to generate a malignancy prediction from the deployed model.</p>
+      </div>
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <span id="themeLabel">Dark</span>
+      </button>
+    </div>
+
+    {% if error %}
+    <div class="alert" role="alert">{{ error }}</div>
+    {% endif %}
+
+    <div class="grid">
+
+      <!-- ---------- Left: form ---------- -->
+      <div>
+        <form action="/" method="POST" novalidate id="predictForm">
+          <span id="form-start"></span>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Mean Measurements</h2>
+              <span class="count">01–07</span>
+            </div>
+
+            <div class="field-row">
+              <label for="query1"><span class="idx">01</span>Radius Mean<span class="info" title="Mean of distances from center to points on the perimeter">i</span></label>
+              <input type="number" step="any" id="query1" name="query1" value="{{ query1|default('') }}" placeholder="0.00" required autofocus>
+            </div>
+            <div class="field-row">
+              <label for="query2"><span class="idx">02</span>Texture Mean<span class="info" title="Standard deviation of grayscale values">i</span></label>
+              <input type="number" step="any" id="query2" name="query2" value="{{ query2|default('') }}" placeholder="0.00" required>
+            </div>
+            <div class="field-row">
+              <label for="query3"><span class="idx">03</span>Perimeter Mean<span class="info" title="Mean size of the core tumor perimeter">i</span></label>
+              <input type="number" step="any" id="query3" name="query3" value="{{ query3|default('') }}" placeholder="0.00" required>
+            </div>
+            <div class="field-row">
+              <label for="query4"><span class="idx">04</span>Smoothness Mean<span class="info" title="Mean local variation in radius lengths">i</span></label>
+              <input type="number" step="any" id="query4" name="query4" value="{{ query4|default('') }}" placeholder="0.00" required>
+            </div>
+            <div class="field-row">
+              <label for="query5"><span class="idx">05</span>Compactness Mean<span class="info" title="Perimeter² / area − 1.0">i</span></label>
+              <input type="number" step="any" id="query5" name="query5" value="{{ query5|default('') }}" placeholder="0.00" required>
+            </div>
+            <div class="field-row">
+              <label for="query6"><span class="idx">06</span>Concavity Mean<span class="info" title="Severity of concave portions of the contour">i</span></label>
+              <input type="number" step="any" id="query6" name="query6" value="{{ query6|default('') }}" placeholder="0.00" required>
+            </div>
+            <div class="field-row">
+              <label for="query7"><span class="idx">07</span>Concave Points Mean<span class="info" title="Number of concave portions of the contour">i</span></label>
+              <input type="number" step="any" id="query7" name="query7" value="{{ query7|default('') }}" placeholder="0.00" required>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Worst Measurements</h2>
+              <span class="count">08–14</span>
+            </div>
+
+            <div class="field-row">
+              <label for="query8"><span class="idx">08</span>Radius Worst<span class="info" title="Largest mean value for radius across the sample">i</span></label>
+              <input type="number" step="any" id="query8" name="query8" value="{{ query8|default('') }}" placeholder="0.00" required>
+            </div>
+            <div class="field-row">
+              <label for="query9"><span class="idx">09</span>Texture Worst<span class="info" title="Largest mean value for texture across the sample">i</span></label>
+              <input type="number" step="any" id="query9" name="query9" value="{{ query9|default('') }}" placeholder="0.00" required>
+            </div>
+            <div class="field-row">
+              <label for="query10"><span class="idx">10</span>Perimeter Worst<span class="info" title="Largest mean value for perimeter across the sample">i</span></label>
+              <input type="number" step="any" id="query10" name="query10" value="{{ query10|default('') }}" placeholder="0.00" required>
+            </div>
+            <div class="field-row">
+              <label for="query11"><span class="idx">11</span>Smoothness Worst<span class="info" title="Largest mean value for smoothness across the sample">i</span></label>
+              <input type="number" step="any" id="query11" name="query11" value="{{ query11|default('') }}" placeholder="0.00" required>
+            </div>
+            <div class="field-row">
+              <label for="query12"><span class="idx">12</span>Compactness Worst<span class="info" title="Largest mean value for compactness across the sample">i</span></label>
+              <input type="number" step="any" id="query12" name="query12" value="{{ query12|default('') }}" placeholder="0.00" required>
+            </div>
+            <div class="field-row">
+              <label for="query13"><span class="idx">13</span>Concavity Worst<span class="info" title="Largest mean value for concavity across the sample">i</span></label>
+              <input type="number" step="any" id="query13" name="query13" value="{{ query13|default('') }}" placeholder="0.00" required>
+            </div>
+            <div class="field-row">
+              <label for="query14"><span class="idx">14</span>Concave Points Worst<span class="info" title="Largest mean value for concave points across the sample">i</span></label>
+              <input type="number" step="any" id="query14" name="query14" value="{{ query14|default('') }}" placeholder="0.00" required>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button type="submit" id="submitBtn">Run prediction</button>
+            <button type="button" class="btn-ghost" id="resetBtn">Clear form</button>
+            <button type="button" class="btn-ghost" id="sampleBtn">Load sample values</button>
+            <span class="submit-hint">14 / 14 fields required</span>
+          </div>
+        </form>
+      </div>
+
+      <!-- ---------- Right: sidebar ---------- -->
+      <div class="side-stack">
+
+        {% if output1 %}
+        <div class="result" role="status" aria-live="polite" id="resultCard">
+          <div class="result-head">
+            <div class="eyebrow" style="margin-bottom:0;">Result</div>
+          </div>
+          <div class="result-body {{ 'flag-malignant' if 'malignant' in output1|lower else 'flag-benign' if 'benign' in output1|lower else '' }}">
+            <p class="result-verdict">{{ output1 }}</p>
+            {% if output2 %}<p class="result-detail">{{ output2 }}</p>{% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if leaderboard %}
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Model Comparison</h2>
+            <span class="count">{{ leaderboard|length }} models</span>
+          </div>
+          {% for name, acc in leaderboard.items() %}
+          <div class="lb-row {{ 'is-deployed' if name == model_name else '' }}">
+            <span class="lb-rank">{{ '%02d'|format(loop.index) }}</span>
+            <span class="lb-name">{{ name }}{% if name == model_name %}<span class="tag">deployed</span>{% endif %}</span>
+            <span class="lb-acc">{{ '%.3f'|format(acc * 100) }}%</span>
+          </div>
+          {% endfor %}
+          <div class="deployed-note">Serving <strong>{{ model_name }}</strong> for live predictions.</div>
+        </div>
+        {% endif %}
+
+        {% if not output1 and not leaderboard %}
+        <div class="panel">
+          <div class="panel-head"><h2>Status</h2></div>
+          <p class="empty-note">Fill in all 14 measurements and run a prediction to see the result here.</p>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <footer>Wisconsin Diagnostic Breast Cancer model · for research and educational use, not a substitute for clinical diagnosis</footer>
+  </div>
+
+<script>
+(function(){
+  // ---- Theme toggle (persisted) ----
+  var root = document.documentElement;
+  var toggle = document.getElementById('themeToggle');
+  var label = document.getElementById('themeLabel');
+
+  function applyTheme(theme){
+    root.setAttribute('data-theme', theme);
+    label.textContent = theme === 'dark' ? 'Light' : 'Dark';
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('bc-theme'); } catch(e) {}
+  if(saved){ applyTheme(saved); }
+  else if(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches){ applyTheme('dark'); }
+
+  toggle.addEventListener('click', function(){
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    try { localStorage.setItem('bc-theme', next); } catch(e) {}
+  });
+
+  // ---- Reset form ----
+  var resetBtn = document.getElementById('resetBtn');
+  var form = document.getElementById('predictForm');
+  resetBtn.addEventListener('click', function(){
+    form.reset();
+    var first = document.getElementById('query1');
+    if(first){ first.focus(); }
+  });
+
+  // ---- Load sample values (for testing the UI, not clinical data) ----
+  var sampleBtn = document.getElementById('sampleBtn');
+  var sample = {
+    query1:'14.2', query2:'20.1', query3:'92.3', query4:'0.098', query5:'0.104',
+    query6:'0.089', query7:'0.048', query8:'16.8', query9:'27.4', query10:'109.5',
+    query11:'0.135', query12:'0.221', query13:'0.207', query14:'0.096'
+  };
+  sampleBtn.addEventListener('click', function(){
+    Object.keys(sample).forEach(function(key){
+      var el = document.getElementById(key);
+      if(el){ el.value = sample[key]; }
+    });
+  });
+
+  // ---- Submit loading state ----
+  var submitBtn = document.getElementById('submitBtn');
+  form.addEventListener('submit', function(){
+    if(form.checkValidity()){
+      submitBtn.classList.add('is-loading');
+      submitBtn.textContent = 'Running…';
+    }
+  });
+
+  // ---- Scroll result into view on load (helpful on mobile) ----
+  var resultCard = document.getElementById('resultCard');
+  if(resultCard && window.innerWidth < 860){
+    resultCard.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+})();
+</script>
+</body>
+</html>
